@@ -23,9 +23,9 @@ st.sidebar.header("Filter Cities and Data")
 default_state = "TX"
 
 # State filter
-state_filter = st.sidebar.selectbox(
+state_filter = st.sidebar.multiselect(
     "Select State(s)", options=sorted(df['State'].unique()),
-     index=list(df["State"].unique()).index(default_state),
+     default=[]
 )
 
 # City filter
@@ -33,8 +33,30 @@ city_filter = st.sidebar.multiselect(
     "Select City/Cities", options=sorted(df['City'].unique()), default=[]
 )
 
+if state_filter:
+    df = df[df["State"].isin(state_filter)]
+
 # Only non-imputed data
 only_real_data = st.sidebar.checkbox("Only Show Non-Imputed Cities", value=False)
+
+st.sidebar.header("Map Color Options")
+
+color_metric = st.sidebar.selectbox(
+    "Color Map Based On:",
+    options=[
+        "6/30/2025",  # Home value
+        "Total_Salary",
+        "Affordability_Combined",
+        "Cost of Living Index"
+    ],
+    format_func=lambda x: {
+        "6/30/2025": "Home Value",
+        "Total_Salary": "Combined Salary",
+        "Affordability_Combined": "Affordability (Combined)",
+        "Cost of Living Index": "Cost of Living Index"
+    }.get(x, x)
+)
+
 
 # Apply filters
 filtered_df = df.copy()
@@ -47,6 +69,21 @@ if only_real_data:
         (filtered_df['Data Scientists_A_MEAN_imputed'] == False) &
         (filtered_df['Registered Nurses_A_MEAN_imputed'] == False)
     ]
+
+import branca.colormap as cm
+
+def get_color(value, colormap):
+    return colormap(value)
+
+# Define a color scale based on selected color_metric
+min_val = filtered_df[color_metric].min()
+max_val = filtered_df[color_metric].max()
+
+colormap = cm.LinearColormap(
+    colors=["red", "yellow", "green", "blue", "purple"],
+    vmin=min_val,
+    vmax=max_val
+)
 
 # -----------------------------
 # Header
@@ -66,13 +103,42 @@ folium_map = folium.Map(location=[39.8283, -98.5795], zoom_start=4)
 marker_cluster = MarkerCluster().add_to(folium_map)
 
 # Loop through filtered data and add markers to the cluster
-for idx, row in filtered_df.iterrows():
-    tooltip = f"{row['City']}, {row['State']}<br>Affordability: {row['Affordability_Combined']:.4f}"
-    folium.Marker(
+for _, row in filtered_df.iterrows():
+    popup_text = f"""
+    <b>{row['City']}, {row['State']}</b><br>
+    <b>Combined Salary:</b> ${row['Total_Salary']:,.0f}<br>
+    <b>Home Value:</b> ${row['6/30/2025']:,.0f}<br>
+    <b>COST Index:</b> {row['Cost of Living Index']}<br>
+    <b>Affordability:</b> {row['Affordability_Combined']:.4f}<br>
+    <b>Imputed Data?</b> {'Yes' if row['Data Scientists_A_MEAN_imputed'] or row['Registered Nurses_A_MEAN_imputed'] else 'No'}
+    """
+
+    color_value = row[color_metric]
+
+    color_value = row[color_metric]
+
+    folium.CircleMarker(
         location=[row['Latitude'], row['Longitude']],
-        popup=tooltip,
-        icon=folium.Icon(color='blue', icon='info-sign')
+        radius=8,  # Fixed size
+        color=colormap(color_value),
+        fill=True,
+        fill_color=colormap(color_value),
+        fill_opacity=0.8,
+        popup=folium.Popup(popup_text, max_width=300),
+        tooltip=f"{row['City']}, {row['State']}"
     ).add_to(marker_cluster)
+
+
+
+colormap.caption = {
+    "6/30/2025": "Home Value (Lower → Higher)",
+    "Total_Salary": "Combined Salary (Lower → Higher)",
+    "Affordability_Combined": "Affordability (Better → Worse)",
+    "Cost of Living Index": "COL Index (Lower → Higher)"
+}.get(color_metric, color_metric)
+
+colormap.add_to(folium_map)
+
 
 # Display map
 st_data = st_folium(folium_map, width=1100, height=600)
