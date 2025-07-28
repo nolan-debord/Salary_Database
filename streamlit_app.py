@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
+from folium.plugins import MarkerCluster
 
 # -----------------------------
 # Load and cache the final dataset
 # -----------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data/merged_final_dataset.csv")  # <-- Update path if needed
+    df = pd.read_csv("data/combined_affordability.csv")  # <-- Update path if needed
     return df
 
 # Load the data
@@ -56,27 +57,22 @@ st.markdown("Use this interactive dashboard to explore affordability for Data Sc
 st.header("📍 City Affordability Map")
 
 # Create the folium map
-m = folium.Map(location=[39.8283, -98.5795], zoom_start=4)
+folium_map = folium.Map(location=[39.8283, -98.5795], zoom_start=4)
 
-# Add city points to the map
-for _, row in filtered_df.iterrows():
-    popup_text = (
-        f"<b>{row['City']}, {row['State']}</b><br>"
-        f"Data Scientist Salary: ${row['Data Scientists_A_MEAN']:,.0f}<br>"
-        f"RN Salary: ${row['Registered Nurses_A_MEAN']:,.0f}<br>"
-        f"Affordability (Combined): {row['Affordability_Combined']:.4f}"
-    )
-    folium.CircleMarker(
+# Create a MarkerCluster object and add it to the map
+marker_cluster = MarkerCluster().add_to(folium_map)
+
+# Loop through filtered data and add markers to the cluster
+for idx, row in filtered_df.iterrows():
+    tooltip = f"{row['City']}, {row['State']}<br>Affordability: {row['Affordability_Combined']:.4f}"
+    folium.Marker(
         location=[row['Latitude'], row['Longitude']],
-        radius=5,
-        color='blue',
-        fill=True,
-        fill_opacity=0.6,
-        popup=popup_text
-    ).add_to(m)
+        popup=tooltip,
+        icon=folium.Icon(color='blue', icon='info-sign')
+    ).add_to(marker_cluster)
 
 # Display map
-st_data = st_folium(m, width=900, height=600)
+st_data = st_folium(folium_map, width=1100, height=600)
 
 # -----------------------------
 # Top Cities Table
