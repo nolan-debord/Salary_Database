@@ -20,9 +20,12 @@ df = load_data()
 # -----------------------------
 st.sidebar.header("Filter Cities and Data")
 
+default_state = "TX"
+
 # State filter
-state_filter = st.sidebar.multiselect(
-    "Select State(s)", options=sorted(df['State'].unique()), default=[]
+state_filter = st.sidebar.selectbox(
+    "Select State(s)", options=sorted(df['State'].unique()),
+     index=list(df["State"].unique()).index(default_state),
 )
 
 # City filter
